@@ -1,11 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { AppService } from './app.service';
 
-interface ICheckedData {
-  ok: boolean;
-  message?: string;
-}
-
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
@@ -31,11 +26,11 @@ export class AppController {
         message: 'Не указан институт',
       };
 
-    if (query.group == '22-КБ-ИВ1')
-      return {
-        ok: false,
-        message: 'Эта группа в бане',
-      };
+    // if (query.group == '22-КБ-ИВ1')
+    //   return {
+    //     ok: false,
+    //     message: 'Эта группа в бане',
+    //   };
 
     return {
       ok: true,
