@@ -1,39 +1,124 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { AppService } from './app.service';
+import { Body, Controller, Delete, Get, Post, Put, Query } from '@nestjs/common';
+import { AppService } from './app.service.js';
+import Cache from './lib/Cache.js';
+import { Types } from 'mongoose';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) { }
 
-  @Get('/hello')
+  @Get()
   getHello(): string {
     return this.appService.getHello();
   }
 
-  @Get('/check_data')
-  checkData(@Query() query): ICheckedData {
-    // query.group query.inst_id query.token?
+  @Get('/auth')
+  async auth(@Query('token') token: string): Promise<IResult> {
+    return await this.appService.testToken(token);
+  }
 
-    if (!query.group)
-      return {
-        ok: false,
-        message: 'Не указана группа',
-      };
+  @Get('/timetable')
+  async getTimetable(@Query('token') token: string): Promise<IResult | Schedule> {
+    let tokenTest = await this.appService.testToken(token);
 
-    if (!query.inst_id)
-      return {
-        ok: false,
-        message: 'Не указан институт',
-      };
+    if(!tokenTest.ok) return tokenTest;
 
-    // if (query.group == '22-КБ-ИВ1')
-    //   return {
-    //     ok: false,
-    //     message: 'Эта группа в бане',
-    //   };
+    let name = token.split(":")[0];
+    let instId = token.split(":")[1];
 
-    return {
-      ok: true,
-    };
+    let group = await Cache.getGroup(name, instId);
+
+    return await group.getRawFullSchedule();
+  }
+
+  @Put('/timetable')
+  async updateTimetable(@Query('token') token: string): Promise<IResult | { ok: boolean, message?: string, schedule?: Schedule; }> {
+    let tokenTest = await this.appService.testToken(token);
+
+    if(!tokenTest.ok) return tokenTest;
+    
+    let name = token.split(":")[0];
+    let instId = token.split(":")[1];
+
+    let group = await Cache.getGroup(name, instId);
+
+    return await group.updateScheduleFromSite();
+  }
+
+  @Get('/events')
+  async getEvents(@Query('token') token: string): Promise<IResult | IEvent[]> {
+    let tokenTest = await this.appService.testToken(token);
+
+    if(!tokenTest.ok) return tokenTest;
+    
+    let name = token.split(":")[0];
+    let instId = token.split(":")[1];
+
+    let group = await Cache.getGroup(name, instId);
+
+    return await group.getAllRawEvents();
+  }
+
+  @Post('/events')
+  async createEvent(@Body() body: IEventWithoutId, @Query('token') token: string): Promise<IResult | { ok: boolean, id?: Types.ObjectId }> {
+    let tokenTest = await this.appService.testToken(token);
+
+    if(!tokenTest.ok) return tokenTest;
+
+    if(!body.name || body.name.length == 0 || body.name.length > 100) return {
+      ok: false,
+      message: "Заголовок должен существовать и его длина не может превышать 100 символов"
+    }
+
+    if(body.note && body.note.length > 500) return {
+      ok: false,
+      message: "Длина описания события не может превышать 500 символов"
+    }
+    
+    let name = token.split(":")[0];
+    let instId = token.split(":")[1];
+
+    let group = await Cache.getGroup(name, instId);
+
+    return await group.createEvent(body);
+  }
+
+  @Put('/events')
+  async updateEvent(@Body() body: IEventWithoutId, @Query('id') id: string, @Query('token') token: string) {
+    let tokenTest = await this.appService.testToken(token);
+
+    if(!tokenTest.ok) return tokenTest;
+
+    if(!body.name || body.name.length == 0 || body.name.length > 100) return {
+      ok: false,
+      message: "Заголовок должен существовать и его длина не может превышать 100 символов"
+    }
+
+    if(body.note && body.note.length > 500) return {
+      ok: false,
+      message: "Длина описания события не может превышать 500 символов"
+    }
+    
+    let name = token.split(":")[0];
+    let instId = token.split(":")[1];
+
+    let group = await Cache.getGroup(name, instId);
+
+    return await group.updateEvent(id, body);
+  }
+
+  @Delete('/events')
+  async deleteEvent(@Query('id') id: string, @Query('token') token: string): Promise<IResult> 
+  {
+    let tokenTest = await this.appService.testToken(token);
+
+    if(!tokenTest.ok) return tokenTest;
+    
+    let name = token.split(":")[0];
+    let instId = token.split(":")[1];
+
+    let group = await Cache.getGroup(name, instId);
+
+    return await group.deleteEvent(id);
   }
 }
